@@ -1,5 +1,5 @@
 import json
-from haversine import haversine, Unit
+from haversine import haversine, inverse_haversine, Direction, Unit
 from tabulate import tabulate
 from DbConnector import DbConnector
 
@@ -79,6 +79,86 @@ class Queries:
             GROUP BY call_type
             ORDER BY call_type
         """)
+    
+    # 5. Taxi med flest antall timer og deretter distanse kjørt
+    def q5(self):
+        self.run("Oppgave 5", """
+            SELECT taxi_id, ROUND(SUM(duration_s) / 60, 2)  AS total_duration_min, ROUND(SUM(distance_km), 2) AS distance_km
+            FROM Trip
+            GROUP BY taxi_id
+            ORDER BY total_duration_min DESC, distance_km DESC
+        """)
+    
+    # 6. Turer som er innefor 100m readius fra city hall
+    def q6(self):
+        CITY_HALL = (41.15794, -8.62911) # på lat, lon format
+        RADIUS_M = 100
+        
+        # definer lat og lon for boksen som inneholder alle punkter som er innenfor 100m fra City_hall
+        max_lat, _ = inverse_haversine(CITY_HALL, RADIUS_M, Direction.NORTH, unit=Unit.METERS)
+        min_lat, _ = inverse_haversine(CITY_HALL, RADIUS_M, Direction.SOUTH, unit=Unit.METERS)
+        _, max_lon = inverse_haversine(CITY_HALL, RADIUS_M, Direction.EAST,  unit=Unit.METERS)
+        _, min_lon = inverse_haversine(CITY_HALL, RADIUS_M, Direction.WEST,  unit=Unit.METERS)
+        
+        # initell filtering av turer som er innenfor boks
+        self.cursor.execute("""
+            SELECT trip_id, polyline
+            FROM Trip
+            WHERE min_lon <= %s AND max_lon >= %s
+            AND min_lat <= %s AND max_lat >= %s
+            """,
+            (max_lon, min_lon, max_lat, min_lat),
+        )
+
+        trips = []
+        
+        for trip_id, polyline in self.cursor.fetchall():
+            points = json.loads(polyline) if isinstance(polyline, str) else polyline
+            if any(haversine((p_lat, p_lon), CITY_HALL, unit=Unit.METERS) <= RADIUS_M for p_lon, p_lat in points):
+                trips.append(trip_id)
+        
+        print("\n=== Oppgave 6 ===")
+        print(tabulate([[t] for t in trips], headers=["trip_id"]))
+        print(f"\n{len(trips):,} turer passerte innenfor {RADIUS_M} m av rådhuset i Porto")
+        
+    # 7. Antall turer med færre enn 3 gps punkt
+    def q7(self):
+        self.run("Oppgave 7", """
+            SELECT COUNT(trip_id) as antall_ugyldinge_turer
+            FROM Trip
+            WHERE n_points < 3
+        """)
+        
+    # 8. Turer som startet en dag og sluttet den neste
+    def q8(self):
+        self.run("Oppgave 8", """
+            SELECT trip_id, start_time, end_time
+            FROM Trip
+            WHERE DATE(start_time) <> DATE(end_time);
+        """)
+                
+    # 9. Turer som startet og slutter innen 50m fra hverandre
+    def q9(self):
+        RADIUS_M = 50
+        
+        # finn alle turer
+        self.cursor.execute("""
+            SELECT trip_id, start_lon, end_lon, start_lat, end_lat
+            FROM Trip
+            WHERE start_lat IS NOT NULL AND end_lat IS NOT NULL
+            """
+        )
+
+        trips = []
+        
+        for trip_id, start_lon, end_lon, start_lat, end_lat in self.cursor.fetchall():
+            if haversine((start_lat, start_lon), (end_lat, end_lon), unit=Unit.METERS) <= RADIUS_M:
+                trips.append(trip_id)
+        
+        print("\n=== Oppgave 9 ===")
+        print(tabulate([[t] for t in trips], headers=["trip_id"]))
+        print(f"\n{len(trips):,} turer som startet og sluttet innen {RADIUS_M}m fra hverandre")
+
 
     # 10. Gjennomsnittlig ventetid mellom påfølgende turer, topp 20 taxier
     def q10(self):
@@ -104,7 +184,8 @@ class Queries:
 
 def main():
     program = Queries()
-    for q in [program.q1, program.q2, program.q3, program.q4a, program.q4b, program.q10]:
+    #for q in [program.q1, program.q2, program.q3, program.q4a, program.q4b, program.q5, program.q6, program.q7, program.q8, program.q9, program.q10]:
+    for q in [program.q9]:
         q()
     program.connection.close_connection()
 
