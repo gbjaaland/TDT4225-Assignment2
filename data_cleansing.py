@@ -22,10 +22,17 @@ def trip_distance_km(polyline):
 def load_and_clean(path="porto.csv", nrows=None):
     df = pd.read_csv(path, nrows=nrows)
     start_count = len(df)
-    df = df[~df["TRIP_ID"].duplicated(keep=False)]   # fjern alle dupliserte ID-er
-    df = df[~df["MISSING_DATA"]]                      # fjern de 10 ufullstendige
+    before = len(df)
+    df = df[~df["TRIP_ID"].duplicated(keep=False)]
+    print(f"Removed {before - len(df):,} trips with duplicated TRIP_ID")
+    before = len(df)
+    df = df[~df["MISSING_DATA"]] 
+    print(f"Removed {before - len(df):,} trips with missing data")
     df = df.drop(columns=["DAY_TYPE", "MISSING_DATA"])
     df["N_POINTS"] = df["POLYLINE"].str.count(r"\[") - 1
+    before = len(df)
+    df = df[df["N_POINTS"] >= 2]  
+    print(f"Removed {before - len(df):,} trips with less than 2 points in polyline.")
     df["DURATION_S"] = (df["N_POINTS"] - 1).clip(lower=0) * 15
 
     # Turer over 2 timer med lav snittfart regnes som glemt taxameter og fjernes
@@ -34,14 +41,20 @@ def load_and_clean(path="porto.csv", nrows=None):
     snittfart = dist / (df.loc[lange, "DURATION_S"] / 3600)
     glemt = snittfart[snittfart < MIN_AVG_SPEED_KMH].index
     df = df.drop(index=glemt)
-    print(f"Fjernet {len(glemt):,} turer over 2 timer med snittfart under {MIN_AVG_SPEED_KMH} km/t")
-
+    print(f"Removed {len(glemt):,} trips over 2 hours with average speed under {MIN_AVG_SPEED_KMH} km/h")
+    
+    #fjerner turer kortere enn 50 m TODO
+    #before = len(df) 
+    #df = df[df["DISTANCE_KM"]< 0.05]
+    #print(f"Removed {before - len(df):,} trips shorter than 50m.")
+    
     # Unix-tid (UTC) -> lokal Porto-tid
     start = (pd.to_datetime(df["TIMESTAMP"], unit="s", utc=True)
                .dt.tz_convert("Europe/Lisbon").dt.tz_localize(None))
     df["START_TIME"] = start
     df["END_TIME"] = start + pd.to_timedelta(df["DURATION_S"], unit="s")
-    print(f"Rader før rensing: {start_count:,} | etter: {len(df):,}")
+    print(f"Rows before cleansing: {start_count:,} | after: {len(df):,}")
+
     return df
 
 
@@ -111,7 +124,7 @@ class DataCleansing:
         self.cursor.execute(query1)
         self.cursor.execute(query2)
         self.db_connection.commit()
-        print("Tabellene er laget")
+        print("Tables are created")
 
     def drop_tables(self):
         # Trip først, fordi den peker på Taxi
@@ -123,7 +136,7 @@ class DataCleansing:
         taxis = [(int(t),) for t in df["TAXI_ID"].unique()]
         self.cursor.executemany("INSERT IGNORE INTO Taxi (taxi_id) VALUES (%s)", taxis)
         self.db_connection.commit()
-        print(f"{len(taxis)} taxier satt inn")
+        print(f"{len(taxis)} taxis inserted")
 
     def insert_trips(self, df):
         sql = """
@@ -141,15 +154,15 @@ class DataCleansing:
         for i in range(0, len(rows), BATCH_SIZE):
             self.cursor.executemany(sql, rows[i:i + BATCH_SIZE])
             self.db_connection.commit()
-            print(f"{min(i + BATCH_SIZE, len(rows)):,} av {len(rows):,} turer satt inn", end="\r")
-        print(f"\nFerdig: {len(rows):,} turer satt inn")
+            print(f"{min(i + BATCH_SIZE, len(rows)):,} av {len(rows):,} trips inserted", end="\r")
+        print(f"\Done: {len(rows):,} trips inserted")
 
 
 def main():
     program = DataCleansing()
     program.drop_tables()
     program.create_table()
-    df = load_and_clean(nrows=None)   # bruk f.eks. nrows=1000 for en rask test
+    df = load_and_clean(nrows=None)  
     program.insert_taxis(df)
     program.insert_trips(df)
     program.connection.close_connection()
