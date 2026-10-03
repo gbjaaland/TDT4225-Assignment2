@@ -53,16 +53,17 @@ class Queries:
         """)
         rows = self.cursor.fetchall()
 
-        beste = {}   # taxi_id -> (call_type, trips)
+        best = {}   # taxi_id -> (call_type, trips)
         for taxi_id, call_type, trips in rows:
-            if taxi_id not in beste or trips > beste[taxi_id][1]:
-                beste[taxi_id] = (call_type, trips)
+            if taxi_id not in best or trips > best[taxi_id][1]:
+                best[taxi_id] = (call_type, trips)
 
-        tabell = [[taxi_id, call_type, trips] for taxi_id, (call_type, trips) in sorted(beste.items())]
-        print("\n=== Oppgave 4a: mest brukte call type per taxi ===")
-        print(tabulate(tabell, headers=["taxi_id", "most_used_call_type", "trips"]))
+        table = [[taxi_id, call_type, trips] for taxi_id, (call_type, trips) in sorted(best.items())]
+        table = table[:10]
+        print("\n=== Task 4a: most used call type per taxi ===")
+        print(tabulate(table, headers=["taxi_id", "most_used_call_type", "trips"]))
 
-    # 4b. Per call type: average duragtion, average distance og share per timeslot
+    # 4b. Per call type: average duragtion, average distance and share per timeslot
     def q4b(self):
         self.run("Task 4b", """
             SELECT call_type,
@@ -115,7 +116,7 @@ class Queries:
             if any(haversine((p_lat, p_lon), CITY_HALL, unit=Unit.METERS) <= RADIUS_M for p_lon, p_lat in points):
                 trips.append(trip_id)
         
-        print("\n=== Oppgave 6 ===")
+        print("\n=== Task 6 ===")
         print(tabulate([[t] for t in trips], headers=["trip_id"]))
         print(f"\n{len(trips):,} trips passed within {RADIUS_M} m of city hall in Porto")
         
@@ -176,14 +177,13 @@ class Queries:
 
         snitt = [(taxi, round(sum(v) / len(v) / 60, 1), len(v)) for taxi, v in waitingtimes.items()]
         snitt.sort(key=lambda rad: rad[1], reverse=True)
-        print("\n=== Oppgave 10 ===")
+        print("\n=== Task 10 ===")
         print(tabulate(snitt[:20], headers=["taxi_id", "avg_idle_min", "n_gaps"]))
 
 
 def main():
     program = Queries()
-    #for q in [program.q1, program.q2, program.q3, program.q4a, program.q4b, program.q5, program.q6, program.q7, program.q8, program.q9, program.q10]:
-    for q in [program.q9]:
+    for q in [program.q1, program.q2, program.q3, program.q4a, program.q4b, program.q5, program.q6, program.q7, program.q8, program.q9, program.q10]:
         q()
     program.connection.close_connection()
 
