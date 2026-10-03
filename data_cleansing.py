@@ -4,9 +4,9 @@ import pandas as pd
 from haversine import haversine, Unit
 
 MAX_SPEED_KMH = 200
-MAX_STEP_M = MAX_SPEED_KMH / 3.6 * 15   # lengste lovlige steg på 15 sek, ca. 833 m
-MAX_DURATION_S = 2 * 3600               # turer lengre enn dette sjekkes for glemt taxameter
-MIN_AVG_SPEED_KMH = 10                  # lange turer under denne snittfarten fjernes
+MAX_STEP_M = MAX_SPEED_KMH / 3.6 * 15   #longest valid step in 15 sec (ca. 833m)
+MAX_DURATION_S = 2 * 3600               #trips longer than this are checked for average speed
+MIN_AVG_SPEED_KMH = 10                  #long trips with lower average speed than this are removed
 BATCH_SIZE = 5000
 
 
@@ -35,18 +35,22 @@ def load_and_clean(path="porto.csv", nrows=None):
     print(f"Removed {before - len(df):,} trips with less than 2 points in polyline.")
     df["DURATION_S"] = (df["N_POINTS"] - 1).clip(lower=0) * 15
 
-    # Turer over 2 timer med lav snittfart regnes som glemt taxameter og fjernes
-    lange = df["DURATION_S"] > MAX_DURATION_S
-    dist = df.loc[lange, "POLYLINE"].apply(lambda p: trip_distance_km(json.loads(p)))
-    snittfart = dist / (df.loc[lange, "DURATION_S"] / 3600)
-    glemt = snittfart[snittfart < MIN_AVG_SPEED_KMH].index
-    df = df.drop(index=glemt)
-    print(f"Removed {len(glemt):,} trips over 2 hours with average speed under {MIN_AVG_SPEED_KMH} km/h")
-    
-    #fjerner turer kortere enn 50 m TODO
-    #before = len(df) 
-    #df = df[df["DISTANCE_KM"]< 0.05]
-    #print(f"Removed {before - len(df):,} trips shorter than 50m.")
+    #calculate distance for all trips
+    df["DISTANCE_KM"] = df["POLYLINE"].apply(lambda p: trip_distance_km(json.loads(p)))
+
+
+    #Trips over 2 hours with low average speed removed
+    averagespeed = df["DISTANCE_KM"] / (df["DURATION_S"]/3600)
+    forgotten = (df["DURATION_S"] > MAX_DURATION_S) & (averagespeed < MIN_AVG_SPEED_KMH)
+    before = len(df)
+    df = df[~forgotten]
+    print(f"Removed {before - len(forgotten):,} trips over 2 hours with average speed under {MIN_AVG_SPEED_KMH} km/h")
+
+    #Trips shorter than 50m removed
+    before = len(df)
+    df = df[df["DISTANCE_KM"] >= 0.05]
+    print(f"Removed {before - len(df):,} trips shorter than 50 m-")
+
     
     # Unix-tid (UTC) -> lokal Porto-tid
     start = (pd.to_datetime(df["TIMESTAMP"], unit="s", utc=True)
