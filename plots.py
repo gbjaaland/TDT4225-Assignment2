@@ -3,10 +3,11 @@ import plotly.graph_objects as go
 import pandas as pd
 import json
 
+# bruk city hall som referansepunkt
+CITY_HALL = dict(lat=41.15794, lon=-8.62911)
+
 def plot_origin_stand(origin_stand, start_punkter):
-    # bruk city hall som referansepunkt
-    CITY_HALL = dict(lat=41.15794, lon=-8.62911)
-    
+
     # plot all stands and all trips with stands for inspection
     fig = px.scatter_map(
         origin_stand,
@@ -67,8 +68,6 @@ def plot_trip(df):
     )
 
     df = df.drop(columns="POLYLINE").reset_index(drop=True)
-    
-    city_hall_lon, city_hall_lat = -8.62911, 41.15794
 
     fig = go.Figure()
 
@@ -92,34 +91,17 @@ def plot_trip(df):
                 )
             )
         )
-        fig.add_trace(
-            go.Scattermap(
-                lat=[city_hall_lat],
-                lon=[city_hall_lon],
-                mode="markers+text",
-                marker=dict(size=18, color="red"),
-                text=["City Hall"],
-                textposition="top right",
-                name="City Hall",
-                hovertemplate=(
-                    "City Hall<br>"
-                    "Lat: %{lat}<br>"
-                    "Lon: %{lon}"
-                    "<extra></extra>"
-                )
-            )
-        )
 
     fig.update_layout(
         map=dict(
             style="basic",
             zoom=12,
             center={
-                "lat": df["LATITUDE"].mean(),
-                "lon": df["LONGITUDE"].mean()
+                "lat": CITY_HALL["lat"],
+                "lon": CITY_HALL["lon"]
             }
         ),
-        height=700,
+        height=400,
         margin=dict(l=0, r=0, t=40, b=0),
         title="Trips"
     )
