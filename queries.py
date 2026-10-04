@@ -156,7 +156,7 @@ class Queries:
         
         print("\n=== Task 9 ===")
         print(tabulate([[t] for t in trips], headers=["trip_id"]))
-        print(f"\n{len(trips):,} trips which started and ended within {RADIUS_M}m from eachother")
+        print(f"\n{len(trips):,} trips which started and ended within {RADIUS_M}m from each other")
 
 
     # 10. Average waiting time following trips, top 20 taxis

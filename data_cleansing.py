@@ -2,12 +2,8 @@ from DbConnector import DbConnector
 import json
 import pandas as pd
 from haversine import haversine, Unit
-
-MAX_SPEED_KMH = 200
-MAX_STEP_M = MAX_SPEED_KMH / 3.6 * 15   #longest valid step in 15 sec (ca. 833m)
-MAX_DURATION_S = 2 * 3600               #trips longer than this are checked for average speed
-MIN_AVG_SPEED_KMH = 10                  #long trips with lower average speed than this are removed
-BATCH_SIZE = 5000
+from utils import remove_gps_faults
+from utils import MAX_STEP_M, MAX_DURATION_S, MIN_AVG_SPEED_KMH, BATCH_SIZE, SPEED_THRESHOLD
 
 
 def trip_distance_km(polyline):
@@ -18,17 +14,22 @@ def trip_distance_km(polyline):
             dist_m += step
     return dist_m / 1000
 
-
 def load_and_clean(path="porto.csv", nrows=None):
     df = pd.read_csv(path, nrows=nrows)
     start_count = len(df)
     before = len(df)
+    
+    # duplicate TRIP_IDs
     df = df[~df["TRIP_ID"].duplicated(keep=False)]
     print(f"Removed {before - len(df):,} trips with duplicated TRIP_ID")
     before = len(df)
+    
+    # missing data
     df = df[~df["MISSING_DATA"]] 
     print(f"Removed {before - len(df):,} trips with missing data")
     df = df.drop(columns=["DAY_TYPE", "MISSING_DATA"])
+    
+    # trips with less than 2 points
     df["N_POINTS"] = df["POLYLINE"].str.count(r"\[") - 1
     before = len(df)
     df = df[df["N_POINTS"] >= 2]  
@@ -37,7 +38,6 @@ def load_and_clean(path="porto.csv", nrows=None):
 
     #calculate distance for all trips
     df["DISTANCE_KM"] = df["POLYLINE"].apply(lambda p: trip_distance_km(json.loads(p)))
-
 
     #Trips over 2 hours with low average speed removed
     averagespeed = df["DISTANCE_KM"] / (df["DURATION_S"]/3600)
@@ -50,7 +50,9 @@ def load_and_clean(path="porto.csv", nrows=None):
     before = len(df)
     df = df[df["DISTANCE_KM"] >= 0.05]
     print(f"Removed {before - len(df):,} trips shorter than 50 m-")
-
+    
+    # remove trips with average speed above 50 and with unexplained jumps
+    df = remove_gps_faults(df)
     
     # Unix-tid (UTC) -> lokal Porto-tid
     start = (pd.to_datetime(df["TIMESTAMP"], unit="s", utc=True)
@@ -159,7 +161,7 @@ class DataCleansing:
             self.cursor.executemany(sql, rows[i:i + BATCH_SIZE])
             self.db_connection.commit()
             print(f"{min(i + BATCH_SIZE, len(rows)):,} av {len(rows):,} trips inserted", end="\r")
-        print(f"\Done: {len(rows):,} trips inserted")
+        print(f"\nDone: {len(rows):,} trips inserted")
 
 
 def main():
