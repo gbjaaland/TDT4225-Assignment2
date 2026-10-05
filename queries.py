@@ -16,6 +16,7 @@ class Queries:
         headers = [d[0] for d in self.cursor.description]
         print(f"\n=== {title} ===")
         print(tabulate(rows, headers=headers))
+        print(f"Number of rows: {len(rows)}")
         return rows
 
     # 1. Number of taxis, trips and GPS-points
@@ -79,13 +80,13 @@ class Queries:
             ORDER BY call_type
         """)
     
-    # 5. Taxi with most number hours and then distance driven 
+    # 5. Taxi with most number of hours and then distance driven 
     def q5(self):
         self.run("Task 5", """
-            SELECT taxi_id, ROUND(SUM(duration_s) / 60, 2)  AS total_duration_min, ROUND(SUM(distance_km), 2) AS distance_km
+            SELECT taxi_id, ROUND(SUM(duration_s) / 3600, 2)  AS total_duration_hours, ROUND(SUM(distance_km), 2) AS distance_km
             FROM Trip
             GROUP BY taxi_id
-            ORDER BY total_duration_min DESC, distance_km DESC
+            ORDER BY total_duration_hours DESC, distance_km DESC
         """)
     
     # 6. Trips within 100m radius from city hall
@@ -117,24 +118,30 @@ class Queries:
                 trips.append(trip_id)
         
         print("\n=== Task 6 ===")
-        print(tabulate([[t] for t in trips], headers=["trip_id"]))
+        print(tabulate([[t] for t in trips[:500]], headers=["trip_id"]))                      # Change this line to print all rows
         print(f"\n{len(trips):,} trips passed within {RADIUS_M} m of city hall in Porto")
         
     # 7. Number of trips with less than 3 gps points
     def q7(self):
         self.run("Task 7", """
-            SELECT COUNT(trip_id) as antall_ugyldinge_turer
+            SELECT COUNT(trip_id) as nr_invalid_trips
             FROM Trip
             WHERE n_points < 3
         """)
         
     # 8. Trips which started one day and ended the next
     def q8(self):
-        self.run("Task 8", """
+        self.cursor.execute("""
             SELECT trip_id, start_time, end_time
             FROM Trip
             WHERE DATE(start_time) <> DATE(end_time);
         """)
+        rows = self.cursor.fetchall()
+        headers = [d[0] for d in self.cursor.description]
+        print(f"\n=== {"Task 8"} ===")
+        print(tabulate(rows[:500], headers=headers))                                          # Change this line to print all rows
+        print(f"Number of rows: {len(rows)}")
+        return rows
                 
     # 9. Trips which started and ended within 50m of eachother
     def q9(self):
@@ -155,7 +162,7 @@ class Queries:
                 trips.append(trip_id)
         
         print("\n=== Task 9 ===")
-        print(tabulate([[t] for t in trips], headers=["trip_id"]))
+        print(tabulate([[t] for t in trips[:500]], headers=["trip_id"]))                      # Change this line to print all rows
         print(f"\n{len(trips):,} trips which started and ended within {RADIUS_M}m from each other")
 
 

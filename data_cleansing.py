@@ -3,7 +3,7 @@ import json
 import pandas as pd
 from haversine import haversine, Unit
 from utils import remove_gps_faults
-from utils import MAX_STEP_M, MAX_DURATION_S, MIN_AVG_SPEED_KMH, BATCH_SIZE, SPEED_THRESHOLD
+from utils import MAX_STEP_M, MAX_DURATION_S, MIN_AVG_SPEED_KMH, BATCH_SIZE
 
 
 def trip_distance_km(polyline):
@@ -44,12 +44,12 @@ def load_and_clean(path="porto.csv", nrows=None):
     forgotten = (df["DURATION_S"] > MAX_DURATION_S) & (averagespeed < MIN_AVG_SPEED_KMH)
     before = len(df)
     df = df[~forgotten]
-    print(f"Removed {before - len(forgotten):,} trips over 2 hours with average speed under {MIN_AVG_SPEED_KMH} km/h")
+    print(f"Removed {before - len(df):,} trips over 2 hours with average speed under {MIN_AVG_SPEED_KMH} km/h")
 
     #Trips shorter than 50m removed
     before = len(df)
     df = df[df["DISTANCE_KM"] >= 0.05]
-    print(f"Removed {before - len(df):,} trips shorter than 50 m-")
+    print(f"Removed {before - len(df):,} trips shorter than 50 m")
     
     # remove trips with average speed above 50 and with unexplained jumps
     df = remove_gps_faults(df)

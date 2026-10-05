@@ -17,8 +17,8 @@ class DbConnector:
     def __init__(self,
                  HOST="127.0.0.1",
                  DATABASE="porto_db",
-                 USER="athina",
-                 PASSWORD="passord"):
+                 USER="username",                           
+                 PASSWORD="password"):
         # Connect to the database
         try:
             self.db_connection = mysql.connect(host=HOST, database=DATABASE, user=USER, password=PASSWORD, port=3306)
