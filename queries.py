@@ -60,7 +60,7 @@ class Queries:
                 best[taxi_id] = (call_type, trips)
 
         table = [[taxi_id, call_type, trips] for taxi_id, (call_type, trips) in sorted(best.items())]
-        table = table[:10]
+        table = table[:10]                                                                                  # Change this line to print all rows
         print("\n=== Task 4a: most used call type per taxi ===")
         print(tabulate(table, headers=["taxi_id", "most_used_call_type", "trips"]))
 
@@ -138,7 +138,7 @@ class Queries:
         """)
         rows = self.cursor.fetchall()
         headers = [d[0] for d in self.cursor.description]
-        print(f"\n=== {"Task 8"} ===")
+        print(f"\n=== Task 8 ===")
         print(tabulate(rows[:500], headers=headers))                                          # Change this line to print all rows
         print(f"Number of rows: {len(rows)}")
         return rows
